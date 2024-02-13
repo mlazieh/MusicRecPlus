@@ -116,6 +116,8 @@ def get_tracks():
                     Items.append(track_name)
            
             offset += 100
+            
+    # return Items
     #Put Items in database saved under this user
     #Display top 20-30 tracks of user with info about tracks
     
@@ -161,4 +163,3 @@ def refresh_token():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
-    
