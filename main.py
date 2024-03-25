@@ -1,40 +1,62 @@
 #Gets the user tracks
 
-import requests
 from flask import Flask, redirect, request, jsonify, session
 from datetime import datetime
+import requests
+from pymongo import MongoClient
+
 import urllib.parse
 import json
+
 import os
 from dotenv import dotenv_values
 
 #http://localhost:5000
-
 app = Flask(__name__)
 app.secret_key = "Garbage"
 
+#API Client Info, URIs, environment variables
 script_directory = os.path.dirname(os.path.abspath(__file__))   #directory path
 env_id_file_path = os.path.join(script_directory, '.env.id')        #client id env file
 env_secret_file_path = os.path.join(script_directory,'.env.secret') #secret env file
+#env_mongo_path = os.path.join(script_directory, '.env.mongo')
 
 config = {
     **dotenv_values(env_id_file_path),
-    **dotenv_values(env_secret_file_path)
+    **dotenv_values(env_secret_file_path),
+#    **dotenv_values(env_mongo_path)
 }
 
 app.secret_key = config['SECRET_KEY']
 client_id = config['CLIENT_ID']
 client_secret = config['CLIENT_SECRET']
-redirect_uri = 'http://localhost:5000/callback'
 
+redirect_uri = 'http://localhost:5000/callback'
 AUTH_URL = 'https://accounts.spotify.com/authorize'
 token_url = 'https://accounts.spotify.com/api/token'
 API_base_url = 'https://api.spotify.com/v1/'
 
+#MongoDB Info
+client = MongoClient("mongodb://127.0.0.1:27017/mongosh?directConnection=true&serverSelectionTimeoutMS=2000")
+database = client.SpotifyInfo
 
+# names = [
+#     {"name" : "Shrek", "spotifyid" : "onion"},
+#     {"name" : "Michael", "spotifyid" : "Kaiser"},
+#     {"name" : "Obama", "spotifyid" : "9/11"}
+# ]
+# database.Users.insert_many(names)
+
+# for user in database.Users.find():
+#     print(user)
+
+# database.Users.delete_many({"name" : {"$ne" : "Michael"}})
+
+
+#Login page
 @app.route('/')
 def index():
-    return "Fuck you: <a href='/login'>Login with Spotify</a>"   #This is the button to login where we redirect to them our endpoint
+    return "Welcome: <a href='/login'>Login with Spotify</a>"   #This is the button to login where we redirect to them our endpoint
 
 @app.route('/login')
 def login():
@@ -51,7 +73,7 @@ def login():
     return redirect(auth_url)
     
     
-    
+#Permission/Token Retrival
 @app.route('/callback')
 def callback():
     #Check for error
@@ -80,7 +102,7 @@ def callback():
         
         return redirect('/tracks')    
 
-
+#Track/Songs/Artist Retrival
 @app.route('/tracks')
 def get_tracks():
     headers = {
@@ -88,34 +110,34 @@ def get_tracks():
     }
     
     #response stores result of endpoint    
-    response = requests.get(API_base_url + 'me/playlists', headers=headers)
+    # response = requests.get(API_base_url + 'me/playlists', headers=headers)
 
-    try:
-        playlists_json = response.json()
-        all_playlists = playlists_json['items']
-    except json.JSONDecodeError as e:
-        print("JSON decoding error:", str(e))
-        return jsonify({"error": f"{response.content} Code:{response.status_code}"})
+    # try:
+    #     playlists_json = response.json()
+    #     all_playlists = playlists_json['items']
+    # except json.JSONDecodeError as e:
+    #     print("JSON decoding error:", str(e))
+    #     return jsonify({"error": f"{response.content} Code:{response.status_code}"})
             
-    Items = []
+    # All_Songs = []
     
-    for playlist in all_playlists:
-        playlist_id = playlist['id']       #gets id from playlist i
-        total_tracks = playlist['tracks']['total']
+    # for playlist in all_playlists:
+    #     playlist_id = playlist['id']       #gets id from playlist i
+    #     total_tracks = playlist['tracks']['total']
         
-        offset = 0
+    #     offset = 0
         
-        while offset < total_tracks:        #limit is 100 for each retrieval
-            params = {'offset':offset, 'limit': 100}
-            tracks_data_json = requests.get(API_base_url + f'playlists/{playlist_id}/tracks', headers=headers, params=params)
-            tracks_data = tracks_data_json.json()
+    #     while offset < total_tracks:        #limit is 100 for each retrieval
+    #         params = {'offset':offset, 'limit': 100}
+    #         tracks_data_json = requests.get(API_base_url + f'playlists/{playlist_id}/tracks', headers=headers, params=params)
+    #         tracks_data = tracks_data_json.json()
             
-            for j in tracks_data['items']:
-                if isinstance(j, dict) and 'track' in j and isinstance(j['track'], dict):
-                    track_name = j['track']['name']
-                    Items.append(track_name)
+    #         for j in tracks_data['items']:
+    #             if isinstance(j, dict) and 'track' in j and isinstance(j['track'], dict):   #is j a dictionary, is the track in in, is the track a dictionary.
+    #                 track_name = j['track']['name']
+    #                 All_Songs.append(track_name)
            
-            offset += 100
+    #         offset += 100
     #Put Items in database saved under this user
     #Display top 20-30 tracks of user with info about tracks
     
@@ -128,15 +150,15 @@ def get_tracks():
         print("JSON decoding error:", str(e))
         return jsonify({"error": f"{response.content} Code:{response.status_code}"})
     
-    Items = []
+    Top_Tracks = []
     
     for tracks in top_tracks:
-        Items.append(f"{tracks['name']}, {tracks['popularity']}")
+        Top_Tracks.append(f"{tracks['name']}, {tracks['popularity']}")
         
-    return Items
+    return Top_Tracks
 #popularity field measures how popular an item is on spotify. Could be cool to rank your favorites based on most popular on Spotify.
 
-
+#Refresh Token
 @app.route('/refresh_token')
 def refresh_token():
     if 'refresh_token' not in session:
